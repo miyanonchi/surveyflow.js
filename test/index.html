@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Survey Flow Generator(Module test)</title>
+</head>
+<body>
+  <pre id="src_area" style="border: solid 1px black"></pre>
+  <textarea id="src">
+page hoge {
+  var hungaa = input huga
+  if (aiueo == 1){
+    echo hoge
+  } else {
+    echo huga
+  }
+}
+</textarea>
+  <br>
+  <div id="result" style="max-height: 300px; overflow: scroll;"></div>
+  <script type="text/javascript" src="test.js"></script>
+  <script type="text/javascript" src="../js/namespace.js"></script>
+  <script type="text/javascript" src="../js/token.js"></script>
+  <script type="text/javascript" src="../js/compiler.js"></script>
+  <script type="text/javascript" src="get_token.js"></script>
+</body>
+</html>

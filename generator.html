@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" media="screen" href="css/main.css">
+  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script type="text/javascript" src="js/namespace.js"></script>
+  <script type="text/javascript" src="js/token.js"></script>
+  <script type="text/javascript" src="js/compiler.js"></script>
+  <title>Survey Flow Generator</title>
+</head>
+<body>
+  <div class="container">
+    <textarea cols="20" id="src_view">
+var hoge = "",h=true
+var huga = 222.21
+page hoge {
+  var aiueo = 1
+  var hungaa = input huga
+  if (aiueo == 1){
+    echo hoge
+  } else {
+    echo huga
+  }
+}
+
+var hoga = hoge.hungaa
+
+echo hoge
+
+echo hoga
+
+print hoge.hungaa</textarea><br>
+  </div>
+
+  <div id="form_preview">
+  </div>
+  <script type="text/javascript" src="js/main.js"></script>
+</body>
+</html>
