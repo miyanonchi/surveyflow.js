@@ -89,8 +89,8 @@ class Compiler {
 }
 
 function log(obj, type) {
-  var _type = 2;
-  if (_type == type) console.log(obj);
+  var mask = 2;
+  if ((type & mask) != 0) console.log(obj);
 }
 
 function is_switch_char(c) {
@@ -154,10 +154,6 @@ function get_token() {
         var tkn = null;
         if (t == "==" || t == "!=" || t == "++" || t == "--" || t == "<=" || t == ">=") {
           tkn = new Token(t, self.line, self.col);
-          if (token.str != "") {
-            self.unget_token(tkn);
-            return token;
-          }
         } else {
           --self.pos;
           --self.col;
@@ -165,7 +161,12 @@ function get_token() {
           tkn = new Token(c, self.line, self.col);
         }
 
-        return tkn;
+        if (token.str != "") {
+          self.unget_token(tkn);
+          return token;
+        } else {
+          return tkn;
+        }
       }
 
       // ',' | "(" | ")" | "{" | "}" の時
@@ -375,6 +376,8 @@ function ctrl() {
 
   var token = self.get_token();
 
+  console.log(token);
+
   if (token.type != Token.TYPE.CTRL) throw SyntaxErrorException(token);
 
   switch (token.str) {
@@ -404,22 +407,50 @@ function assign(v) {
 
   // 代入の右辺
   var token = self.get_token();
-  console.log(token);
   if (token.isCmd()) {
     self.cmd();
+  } else {
+    // 式
+    self.unget_token(token);
+    v.value = self.expr();
   }
 }
 
 function _if() {
   const self = privates(this);
 
+  var if_obj = {
+    cnd: {
+      left: true,
+      oper: "==",
+      right: true
+    },
+    thn: [],
+    els: [],
+  };
+
   var token = self.get_token();
+  console.log(token);
   if (!token.isBracket("(")) throw SyntaxErrorException(token);
 
-  self.expr();
+  // 左辺
+  if_obj.cnd.left = self.expr();
 
   token = self.get_token();
-  if (!token.isBracket(")")) throw SyntaxErrorException(token);
+
+  // 比較演算子
+  if (token.isOperator()) {
+    if (0 <= ["==", "!=", "<", ">", "<=", ">="].indexOf(token.str)) {
+      if_obj.cnd.oper = token.str;
+    }
+
+    // 右辺
+    if_obj.cnd.right = self.expr();
+  } else
+  // 閉じかっこ
+  if (!token.isBracket(")")) {
+    // 特に問題ない
+  } else throw SyntaxErrorException(token);
 
   token = self.get_token();
   if (token.isBracket("{"))
@@ -439,6 +470,7 @@ function _if() {
     self.unget_token(token);
   }
 
+  return if_obj;
 }
 
 function define() {
@@ -469,7 +501,8 @@ function define() {
   token = self.get_token();
 
   // "=" がきたら
-  if (token.isOperate("=")) {
+  if (token.isOperator("=")) {
+    self.log("代入", 2);
     self.assign(variable);
   } else {
     self.unget_token(token);

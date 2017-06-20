@@ -80,7 +80,7 @@ class Token {
     return (this.type == Token.TYPE.CTRL && (str == null || this.str  == str));
   }
 
-  isOperate(str = null) {
+  isOperator(str = null) {
     return (this.type == Token.TYPE.OPERATOR && (str == null || this.str  == str));
   }
 
@@ -190,7 +190,7 @@ Token.RESERVED = {
   VALUE:    ["true", "false"],
   BRACKET:  ["(", ")", "[", "]", "{", "}"],
   CMD:      ["page", "title", "subtitle", "label", "input", "text", "radio", "checkbox"],
-  CTRL:     ["if", "unless", "else", "elsif", "for", "while", "begin", "end", "do", "var"],
+  CTRL:     ["if", "unless", "else", "elsif", "for", "while", "begin", "end", "do", "echo", "var"],
   SYMBOL:   [",", ";", ":", "."],
   OPERATOR: ["=", "!", "!=", "==", "+", "++", "--", "-", "*", "/", "<", ">", "<=", ">="],
 };
