@@ -68,6 +68,10 @@ class Token {
     return this.type == Token.TYPE.LITERAL;
   }
 
+  isEOT() {
+    return this.type == Token.TYPE.EOT;
+  }
+
   isNewline() {
     return this.type == Token.TYPE.NEWLINE;
   }
@@ -78,6 +82,10 @@ class Token {
 
   isCtrl(str = null) {
     return (this.type == Token.TYPE.CTRL && (str == null || this.str  == str));
+  }
+
+  isSymbol(str = null) {
+    return (this.type == Token.TYPE.SYMBOL && (str == null || this.str  == str));
   }
 
   isOperator(str = null) {
@@ -162,7 +170,7 @@ Token.prototype.toString = function() {
     break;
   }
 
-  return type + " " + str + literal + " l: " + this.line + ", c: " + this.col;
+  return type + " " + str + literal + " [" + this.line + ":" + this.col + "]";
 }
 
 Token.TYPE = {
@@ -190,7 +198,7 @@ Token.RESERVED = {
   VALUE:    ["true", "false"],
   BRACKET:  ["(", ")", "[", "]", "{", "}"],
   CMD:      ["page", "title", "subtitle", "label", "input", "text", "radio", "checkbox"],
-  CTRL:     ["if", "unless", "else", "elsif", "for", "while", "begin", "end", "do", "echo", "var"],
+  CTRL:     ["if", "unless", "else", "elsif", "for", "while", "begin", "end", "do", "echo", "print", "var"],
   SYMBOL:   [",", ";", ":", "."],
   OPERATOR: ["=", "!", "!=", "==", "+", "++", "--", "-", "*", "/", "<", ">", "<=", ">="],
 };

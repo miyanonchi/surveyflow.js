@@ -9,3 +9,5 @@ function namespace() {
     return map.get(object);
   };
 };
+
+const privates = new namespace();

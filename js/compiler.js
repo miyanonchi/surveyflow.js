@@ -1,7 +1,5 @@
 'use strict';
 
-const privates = new namespace();
-
 class Compiler {
   constructor(src = "") {
     const self = privates(this);
@@ -16,38 +14,8 @@ class Compiler {
     self.col = 0;
     self.stacked_token = [];
 
-    // ページ、ブロック、変数生成時にIDとする
-    self.counters = {
-      page_id: 0,
-      block_id: 0,
-      var_id: 0,
-    };
-
-    // プログラム中のページのリスト
-    self.pages = [
-      {
-        id: 0,
-        name: "_dummy_",
-        block_id: 0,
-      }
-    ];
-
-    self.blocks = [
-      {
-        id: 0,
-        name: "_main_",
-        parent: null,
-        stmts: [],
-      }
-    ];
-    self.variables = [];
-
-    self.current = {
-      page: self.pages[0],
-      block: self.blocks[0],
-    };
-
-    self.callbacks = [];
+    // 返すプログラムオブジェクト
+    self.prog = new Program();
 
     self.log = log.bind(this);
     self.find_variable = find_variable.bind(this);
@@ -60,6 +28,7 @@ class Compiler {
     self.define = define.bind(this);
     self.assign = assign.bind(this);
     self.ctrl = ctrl.bind(this);
+    self.print = print.bind(this);
     self._if = _if.bind(this);
     self.cmd = cmd.bind(this);
     self.expr = expr.bind(this);
@@ -76,19 +45,21 @@ class Compiler {
       if (token.isCtrl("var")) {
         self.log("変数宣言", 2);
         self.define();
-      }
-      if (token.isCmd("page")) {
+      } else if (token.isCmd("page")) {
         self.log("ページ宣言", 2);
         self.page();
+      } else {
+        self.unget_token(token);
+        self.stmt();
       }
       token = self.get_token();
     }
 
-    return { blocks: self.blocks, pages: self.pages, variables: self.variables };
+    return self.prog;
   }
 }
 
-function log(obj, type) {
+function log(obj, type = 0xffff) {
   var mask = 2;
   if ((type & mask) != 0) console.log(obj);
 }
@@ -110,7 +81,7 @@ function get_token() {
     c = self.src.charAt(self.pos++);
     ++self.col;
 
-    self.log(self.pos + "文字目: '" + c.replace("\n", "\\n") + "'");
+    self.log(self.pos + "文字目: '" + c.replace("\n", "\\n") + "'", 1);
 
     // 文字列フラグ
     if (c == "'" && !in_dquot)
@@ -118,15 +89,15 @@ function get_token() {
     if (c == '"' && !in_quot)
       in_dquot = !in_dquot;
 
-    self.log("文字列の中: " + (in_quot || in_dquot));
+    self.log("文字列の中: " + (in_quot || in_dquot), 1);
 
     col = self.col - (self.pos - pos) + 1; 
-    self.log("col: " + col);
+    self.log("col: " + col, 1);
     if (!in_quot && !in_dquot) {
       var token = null;
       if (self.is_switch_char(c)) {
         token = new Token(str, self.line, col);
-        self.log("token作っとく" + token.toString());
+        self.log("token作っとく" + token.toString(), 1);
       }
 
       // 改行の時
@@ -136,10 +107,10 @@ function get_token() {
 
         var nl = new Token(c, self.line++, col);
         if (token.str == "") {
-          self.log("改行を返す");
+          self.log("改行を返す", 1);
           return nl;
         } else {
-          self.log("改行を戻してtokenを返す");
+          self.log("改行を戻してtokenを返す", 1);
           self.unget_token(nl);
           return token;
         }
@@ -186,9 +157,9 @@ function get_token() {
         do {
           c = self.src.charAt(self.pos++);
           ++self.col;
-          self.log("読み飛ばす: '" + c.replace("\n", "\\n") + "'");
+          self.log("読み飛ばす: '" + c.replace("\n", "\\n") + "'", 1);
         } while(c == " " && self.pos < self.src.length);
-        self.log("と思わせて戻す");
+        self.log("と思わせて戻す", 1);
 
         --self.pos;
         --self.col;
@@ -200,7 +171,7 @@ function get_token() {
       }
     }
     str += c;
-    self.log("str: " + str);
+    self.log("str: " + str, 1);
   }
 
   return new Token(str, self.line, col);
@@ -247,36 +218,26 @@ Object.setPrototypeOf(MultipleDefineException.prototype, BaseException.prototype
 function page() {
   const self = privates(this);
   // Pageの名前が来る
-  var token = self.get_token(), page, old_page = self.current.page;
+  var token = self.get_token(), page, old_page = self.prog.current.page;
   if (token.isString() || token.isVariable()) {
     page = {
-      id: ++self.counters.page_id,
+      id: ++self.prog.counters.page_id,
       name: token.str,
       block_id: null,
     };
   } else
     throw new SyntaxErrorException(token);
 
-  // "{" が来る
-  token = self.get_token();
-  if (!token.str == "{")
-    throw new SyntaxErrorException(token);
-
   // 今のページの情報を更新
-  self.current.page = page
+  self.prog.current.page = page
 
   self.log("blockの処理", 2);
   // Blockの処理
   page.block_id = self.block().id;
-  self.pages.push(page);
-
-  // "}" が来る
-  token = self.get_token();
-  if (!token.str == "}")
-    throw new SyntaxErrorException(token);
+  self.prog.pages.push(page);
 
   // 今のページの情報を更新
-  self.current.page = old_page; 
+  self.prog.current.page = old_page;
 
   return page;
 }
@@ -285,21 +246,27 @@ function block() {
   const self = privates(this);
   //token = self.get_token();
   var block = {
-    id: ++self.counters.block_id,
-    parent: self.current.block,
+    id: ++self.prog.counters.block_id,
+    parent: self.prog.current.block.id,
     stmts: [],
   };
 
-  self.current.block = block;
+  // "{" が来る
+  var token = self.get_token();
+  if (!token.str == "{")
+    throw new SyntaxErrorException(token);
+
+  self.prog.current.block = block;
 
   // ブロックのリストに登録
-  self.blocks.push(block);
+  self.prog.blocks.push(block);
 
-  var token = self.get_token();
+  token = self.get_token();
   while (token.type != Token.TYPE.ILLIGAL && token.type != Token.TYPE.EOT) {
     // Blockの終わり
     if (token.isBracket("}")) {
-      self.current.block = block.parent;
+      self.unget_token(token);
+      self.prog.current.block = self.prog.blocks[block.parent];
       break;
     }
 
@@ -311,6 +278,11 @@ function block() {
 
     token = self.get_token();
   }
+
+  // "}" が来る
+  token = self.get_token();
+  if (!token.str == "}")
+    throw new SyntaxErrorException(token);
 
   return block;
 }
@@ -327,19 +299,31 @@ function stmt() {
   } else
   // 定義済みの変数への代入、または計算
   if (token.isVariable()) {
+    console.log(token);
     self.log("定義済みの変数への代入、または計算", 2);
     self.unget_token(token);
-    self.variable();
+    var variable = self.variable();
+    token = self.get_token();
+    if (token.isOperator("=")) {
+      self.assign(variable);
+    }
+
+    if (token.isOperator("++") || token.isOperator("--")) {
+
+    }
   } else
   // ifやforなどの制御文
   if (token.isCtrl()) {
     self.log("var,if,for,else,unless,elsif,while,begin,do,endなどの処理", 2);
     self.unget_token(token);
+    console.log(token);
     self.ctrl();
   }
+
   // 改行
   token = self.get_token();
-  if (!token.isNewline())
+  console.log(token);
+  if (!token.isNewline() && !token.isSymbol(";") && !token.isEOT())
     throw new SyntaxErrorException(token);
 }
 
@@ -376,8 +360,6 @@ function ctrl() {
 
   var token = self.get_token();
 
-  console.log(token);
-
   if (token.type != Token.TYPE.CTRL) throw SyntaxErrorException(token);
 
   switch (token.str) {
@@ -399,6 +381,10 @@ function ctrl() {
   case "do":
     self._do();
     break;
+  case "print":
+  case "echo":
+    self.print();
+    break;
   }
 }
 
@@ -412,6 +398,7 @@ function assign(v) {
   } else {
     // 式
     self.unget_token(token);
+    console.log(token);
     v.value = self.expr();
   }
 }
@@ -420,6 +407,7 @@ function _if() {
   const self = privates(this);
 
   var if_obj = {
+    type: "if",
     cnd: {
       left: true,
       oper: "==",
@@ -430,7 +418,6 @@ function _if() {
   };
 
   var token = self.get_token();
-  console.log(token);
   if (!token.isBracket("(")) throw SyntaxErrorException(token);
 
   // 左辺
@@ -453,10 +440,12 @@ function _if() {
   } else throw SyntaxErrorException(token);
 
   token = self.get_token();
-  if (token.isBracket("{"))
+  if (token.isBracket("{")) {
+    self.unget_token(token);
     self.block();
-  else
+  } else {
     self.stmt();
+  }
 
   token = self.get_token();
   while (token.isCtrl("elsif")) {
@@ -485,10 +474,10 @@ function define() {
   if (self.find_variable(token))
     throw new MultipleDefineException(token);
 
-  var cur = self.current;
+  var cur = self.prog.current;
 
   var variable = {
-    id: ++self.counters.var_id,
+    id: ++self.prog.counters.var_id,
     name: token.str,
     page: cur.page.id,
     block: cur.block.id,
@@ -496,7 +485,7 @@ function define() {
   };
 
   // 変数リストに追加
-  self.variables.push(variable);
+  self.prog.variables.push(variable);
 
   token = self.get_token();
 
@@ -517,7 +506,7 @@ function define() {
   }
 
   // 改行がきたら
-  if (token.isNewline()) {
+  if (token.isNewline() || token.isSymbol(";")) {
     // 問題ないから読み飛ばす
   }
 
@@ -526,10 +515,25 @@ function define() {
   return variable;
 }
 
+function print() {
+  const self = privates(this);
+
+  var obj = {
+    type: "print",
+    val: ""
+  };
+
+  obj.val = self.expr();
+
+  return obj;
+}
+
 function expr() {
   const self = privates(this);
 
   var token = self.get_token();
+
+  console.log(token);
 
   // リテラル(Int or Float or Bool)
   if (token.isInt() || token.isFloat() || token.isBool())
@@ -543,12 +547,12 @@ function expr() {
   // 変数
   if (token.isVariable()) {
     self.unget_token(token);
-    return self.variable().value;
+    return self.variable();
   } else
   // title,subtitle,etc...
   if (token.isCmd()) {
-    self.cmd();
-  }
+    return self.cmd();
+  } else SyntaxErrorException(token);
 
   return 0;
 }
@@ -584,7 +588,7 @@ function find_variable(token) {
   const self = privates(this);
 
   var dot = token.str.lastIndexOf("."),
-      page_id = self.current.page.id, block_id = self.current.block.id,
+      page_id = self.prog.current.page.id, block_id = self.prog.current.block.id,
       page_name = "", var_name = "";
 
   // 変数がPageの下にある時
@@ -595,7 +599,7 @@ function find_variable(token) {
     var_name = token.str;
   }
 
-  for (var p of self.pages) {
+  for (var p of self.prog.pages) {
     if (p.name == page_name) {
       page_id = p.id;
       block_id = p.block_id;
@@ -604,7 +608,7 @@ function find_variable(token) {
   }
 
   // 変数が定義済みか調べる
-  for (var v of self.variables) {
+  for (var v of self.prog.variables) {
     if (v.page == page_id && v.name == var_name) return v;
   }
 
