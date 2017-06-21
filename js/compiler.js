@@ -50,7 +50,7 @@ class Compiler {
         self.page();
       } else {
         self.unget_token(token);
-        self.stmt();
+        self.prog.current.block.stmts.push(self.stmt());
       }
       token = self.get_token();
     }
@@ -295,7 +295,7 @@ function stmt() {
   if (token.isCmd()) {
     self.log("コマンド", 2);
     self.unget_token(token);
-    self.cmd();
+    return self.cmd();
   } else
   // 定義済みの変数への代入、または計算
   if (token.isVariable()) {
@@ -305,7 +305,7 @@ function stmt() {
     var variable = self.variable();
     token = self.get_token();
     if (token.isOperator("=")) {
-      self.assign(variable);
+      return self.assign(variable);
     }
 
     if (token.isOperator("++") || token.isOperator("--")) {
@@ -316,13 +316,11 @@ function stmt() {
   if (token.isCtrl()) {
     self.log("var,if,for,else,unless,elsif,while,begin,do,endなどの処理", 2);
     self.unget_token(token);
-    console.log(token);
-    self.ctrl();
+    return self.ctrl();
   }
 
   // 改行
   token = self.get_token();
-  console.log(token);
   if (!token.isNewline() && !token.isSymbol(";") && !token.isEOT())
     throw new SyntaxErrorException(token);
 }
@@ -333,6 +331,11 @@ function cmd() {
   var token = self.get_token();
 
   if (token.str == "page") throw SyntaxErrorException(token);
+
+  cmd_obj = {
+    type: token.str,
+    val: ""
+  };
 
   switch (token.str) {
   case "title":
@@ -353,6 +356,8 @@ function cmd() {
   case "checkbox":
     break;
   }
+
+  return cmd_obj;
 }
 
 function ctrl() {
@@ -364,27 +369,20 @@ function ctrl() {
 
   switch (token.str) {
   case "var":
-    self.define();
-    break;
+    return self.define();
   case "if":
-    self._if();
-    break;
+    return self._if();
   case "unless":
-    self._unless();
-    break;
+    return self._unless();
   case "for":
-    self._for();
-    break;
+    return self._for();
   case "while":
-    self._while();
-    break;
+    return self._while();
   case "do":
-    self._do();
-    break;
+    return self._do();
   case "print":
   case "echo":
-    self.print();
-    break;
+    return self.print();
   }
 }
 
@@ -394,12 +392,12 @@ function assign(v) {
   // 代入の右辺
   var token = self.get_token();
   if (token.isCmd()) {
-    self.cmd();
+    return self.cmd();
   } else {
     // 式
     self.unget_token(token);
     console.log(token);
-    v.value = self.expr();
+    return v.value = self.expr();
   }
 }
 

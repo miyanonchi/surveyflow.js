@@ -23,6 +23,7 @@ function compile() {
 
   console.log("compile done.");
 
+  console.log(prog);
   prog.exec();
 }
 
