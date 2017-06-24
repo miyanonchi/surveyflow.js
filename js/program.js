@@ -36,12 +36,16 @@ class Program {
     this.current = {
       page: this.pages[0],
       block: this.blocks[0],
+      ptr: 0
     };
 
     this.callbacks = [];
   }
 
   exec() {
+    this.current.page = this.pages[0];
+    this.current.block = this.blocks[0];
+    this.current.ptr = 0;
     console.log("huga!!!");
   }
 }

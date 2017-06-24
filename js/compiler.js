@@ -44,7 +44,7 @@ class Compiler {
     while (token.type != Token.TYPE.ILLIGAL && token.type != Token.TYPE.EOT) {
       if (token.isCtrl("var")) {
         self.log("変数宣言", 2);
-        self.define();
+        self.prog.current.block.stmts.push(self.define());
       } else if (token.isCmd("page")) {
         self.log("ページ宣言", 2);
         self.page();
@@ -64,8 +64,8 @@ function log(obj, type = 0xffff) {
   if ((type & mask) != 0) console.log(obj);
 }
 
+const splt_char = [" ", ",", "(", ")", "{", "}", "=", "!", "+", "-", "*", "/", "<", ">", ";", "\n"];
 function is_switch_char(c) {
-  var splt_char = [" ", ",", "(", ")", "{", "}", "=", "!", "+", "-", "*", "/", "<", ">", ";", "\n"];
   return (0 <= splt_char.indexOf(c));
 }
 
@@ -195,9 +195,11 @@ function BaseException(token) {
 }
 
 function SyntaxErrorException(token) {
-  BaseException.call(this, token);
-  this.name = "SyntaxError";
-  this.message = this.toString();
+  var obj = {};
+  BaseException.call(obj, token);
+  obj.name = "SyntaxError";
+  obj.message = obj.toString();
+  return obj;
 }
 Object.setPrototypeOf(SyntaxErrorException.prototype, BaseException.prototype);
 
@@ -299,12 +301,12 @@ function stmt() {
   } else
   // 定義済みの変数への代入、または計算
   if (token.isVariable()) {
-    console.log(token);
     self.log("定義済みの変数への代入、または計算", 2);
     self.unget_token(token);
     var variable = self.variable();
     token = self.get_token();
     if (token.isOperator("=")) {
+      self.unget_token(token);
       return self.assign(variable);
     }
 
@@ -333,8 +335,9 @@ function cmd() {
   if (token.str == "page") throw SyntaxErrorException(token);
 
   cmd_obj = {
-    type: token.str,
-    val: ""
+    type: "cmd",
+    cmd: token.str,
+    target: ""
   };
 
   switch (token.str) {
@@ -362,10 +365,16 @@ function cmd() {
 
 function ctrl() {
   const self = privates(this);
-
+  
   var token = self.get_token();
-
+  
   if (token.type != Token.TYPE.CTRL) throw SyntaxErrorException(token);
+
+  var ctrl_obj = {
+    type: "ctrl",
+    ctrl: token.str,
+    target: ""
+  };
 
   switch (token.str) {
   case "var":
@@ -391,6 +400,17 @@ function assign(v) {
 
   // 代入の右辺
   var token = self.get_token();
+
+  if (["=", "+=", "-=", "*=", "/=", "|=", "&=", ">>=", "<<=", "^="].indexOf(token.str) < 0)
+    SyntaxErrorException(token);
+  
+  var assign_obj = {
+    type: "assign",
+    left: v,
+    operator: token.str,
+    right: ""
+  }
+
   if (token.isCmd()) {
     return self.cmd();
   } else {
@@ -475,6 +495,7 @@ function define() {
   var cur = self.prog.current;
 
   var variable = {
+    type: "variable",
     id: ++self.prog.counters.var_id,
     name: token.str,
     page: cur.page.id,
